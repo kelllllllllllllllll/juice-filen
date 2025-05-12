@@ -1,0 +1,17 @@
+{
+  "name": "filen-webdav",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest",
+    "tsx": "^4.19.4"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "arktype": "^2.1.20",
+    "async-sema": "^3.1.1"
+  }
+}
