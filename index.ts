@@ -172,7 +172,9 @@ async function verify(
 			NPath.relative(config.base_directory, filepath),
 			"posix",
 		);
+
 		const entry_path = rel.startsWith("/") ? rel.trim() : `/${rel}`.trim();
+
 		const entry = PathRecord[entry_path];
 		if (entry) {
 			if (entry.kind === "file") {
