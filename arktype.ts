@@ -58,7 +58,7 @@ export const LocalMetadata = type({
 export type LocalMetadata = typeof LocalMetadata.infer;
 
 export const Config = type({
-	version: "string.semver = '2.3.0'",
+	version: "string.semver = '2.3.1'",
 	no_base: "boolean = true",
 	parent_uuid: "string.uuid = '607c110c-48e1-4248-bf45-0eb0dfd06fb9'",
 	parent_password: "string = 'juicetracker'",
