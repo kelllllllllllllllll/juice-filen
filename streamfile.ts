@@ -57,6 +57,7 @@ export async function download_file(
 	path: string,
 	maxChunks: Sema,
 ) {
+	let lastChunkTime = performance.now();
 	const f = await fs.open(path, "w");
 	try {
 		await ftruncate(f.fd, file.metadata.size); // preallocate file
@@ -73,11 +74,16 @@ export async function download_file(
 						file.metadata.key,
 					).then((chunk) => {
 						f.write(chunk, 0, chunk.byteLength, i * CHUNK_SIZE);
+						lastChunkTime = performance.now();
 					});
 				})
 				.finally(() => maxChunks.release()),
 		);
-
+		setInterval(async () => {
+			if (performance.now() - lastChunkTime > 300000) {
+				throw new Error("Download timed out");
+			}
+		}, 10000);
 		await Promise.all(promises);
 	} finally {
 		await f.close();
