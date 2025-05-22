@@ -49,6 +49,7 @@ export const rawInput = type({
 });
 export type Input = typeof rawInput.infer;
 export const Config = type({
+	version: "string.semver = '2.1.0'",
 	parent_uuid: "string.uuid = '607c110c-48e1-4248-bf45-0eb0dfd06fb9'",
 	parent_password: "string = 'juicetracker'",
 	parent_key: "string = 'mdbzIcGzl9HcgB1KkbxGSVxaw2f2Ao1v'",
@@ -57,7 +58,15 @@ export const Config = type({
 	move_removed_files: "boolean = true",
 	removed_directory: "string = './removed'",
 	verify_retries: "number.integer >= 0 = 3",
-	max_files: "number.integer >= 1 = 128",
-	max_chunks: "number.integer >= 1 = 1024",
+	max_chunks: "number.integer >= 1 = 256",
+	max_files: "number.integer >= 1 = 32",
 });
 export type Config = typeof Config.infer;
+
+export const RemoteMetadata = type({
+	uuid: "string.uuid.v4",
+	lastModified: "number.epoch",
+	creation: "number.epoch",
+	size: "number.integer >= 1",
+});
+export type RemoteMetadata = typeof RemoteMetadata.infer;

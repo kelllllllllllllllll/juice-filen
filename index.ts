@@ -5,7 +5,13 @@ import { Sema } from "async-sema";
 import { $ } from "bun";
 import { Config, type ExtendedFile, type ExtendedFolder } from "./arktype";
 import { download_file } from "./streamfile";
-import { convertPath, flatTreeToPathRecordDFS, getFlatTree } from "./utils";
+import {
+	convertPath,
+	flatTreeToPathRecordDFS,
+	getFlatTree,
+	getRemoteMetadata,
+	setRemoteMetadata,
+} from "./utils";
 
 async function* walk(dir: string): AsyncGenerator<string> {
 	for await (const d of await fs.opendir(dir)) {
@@ -14,26 +20,21 @@ async function* walk(dir: string): AsyncGenerator<string> {
 		else if (d.isFile()) yield entry;
 	}
 }
-async function setCreationTime(filepath: string, creation: number) {
-	if (process.platform !== "win32") {
-		return;
-	} // hell code, why the fuck does nodejs not support this?
-	const escapedFilepath = filepath
-		.replaceAll("'", "''")
-		.replaceAll("[", "`[")
-		.replaceAll("]", "`]")
-		.replaceAll("’", "'’")
-		.replaceAll("‘", "'‘");
 
-	try {
-		const result =
-			await $`powershell -Command "\$creationUnixMs = ${creation.toFixed(0)}; \$newCreationTime = [DateTime]::SpecifyKind([DateTimeOffset]::FromUnixTimeMilliseconds(\$creationUnixMs).DateTime, [DateTimeKind]::Utc); Get-Item '${escapedFilepath}' | Set-ItemProperty -Name CreationTimeUtc -Value \$newCreationTime"`.quiet();
-	} catch (e) {
-		if (e instanceof $.ShellError) {
-			console.log(filepath, escapedFilepath);
-			console.log(e.stdout.toString(), e.stderr.toString());
-		}
+async function folder_Picker(description: string) {
+	if (process.platform !== "win32") {
+		throw new Error("Folder picker is only supported on Windows");
 	}
+	const result =
+		await $`powershell -Command "Add-Type -AssemblyName System.Windows.Forms; \$folderBrowserDialog = New-Object System.Windows.Forms.FolderBrowserDialog; \$folderBrowserDialog.Description = '${description}'; \$folderBrowserDialog.ShowNewFolderButton = \$true; \$folderBrowserDialog.RootFolder = [System.Environment+SpecialFolder]::Desktop; \$folderBrowserDialog.AutoUpgradeEnabled = \$true; if (\$folderBrowserDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Host \$folderBrowserDialog.SelectedPath }"`.text();
+	if (await fs.exists(result)) {
+		const stat = await fs.stat(result);
+		if (!stat.isDirectory()) {
+			throw new Error("Selected path is not a folder");
+		}
+		return result;
+	}
+	throw new Error("Folder picker returned invalid path");
 }
 
 function shouldSkipDownload(path: string, config: Config) {
@@ -63,41 +64,48 @@ async function download_entry(
 ): Promise<number> {
 	// 0 = downloaded new file, 1 = file already exists and is the same, 2 = file already exists and is different
 	if (entry.kind === "file") {
-		if (await fs.exists(filepath)) {
-			const stats = await fs.stat(filepath);
+		try {
+			const localMetadata = await getRemoteMetadata(filepath);
 			if (
-				stats.size === entry.metadata.size &&
-				stats.mtimeMs === entry.metadata.lastModified &&
-				stats.birthtimeMs === entry.metadata.creation
+				localMetadata.size === entry.metadata.size &&
+				localMetadata.lastModified === entry.metadata.lastModified &&
+				localMetadata.creation === entry.metadata.creation
 			) {
-				return 1;
+				return 1; // File exists and is the same
 			}
-			return 2;
+		} catch (e) {
+			// If getRemoteMetadata throws, it means attributes are not set or file doesn't exist.
+			// Proceed to download.
 		}
 		await fs.mkdir(NPath.dirname(filepath), { recursive: true });
 
 		await download_file(entry, filepath, maxChunks);
 
-		await fs.utimes(
-			filepath,
-			new Date(entry.metadata.lastModified),
-			new Date(entry.metadata.lastModified),
-		);
+		await setRemoteMetadata(filepath, {
+			uuid: entry.uuid, // Assuming entry has uuid, if not adjust
+			lastModified: entry.metadata.lastModified,
+			creation: entry.metadata.creation,
+			size: entry.metadata.size,
+		});
 	}
 	if (entry.kind === "folder") {
 		await fs.mkdir(filepath, { recursive: true });
+		// For folders, we might want to set some default/derived metadata if applicable
+		// For now, we're only explicitly setting metadata for files after download.
+		// If folders also need persistent metadata via xattr, add setRemoteMetadata here.
 	}
 	return 0;
 }
+
 async function sync(
 	PathRecord: Record<string, ExtendedFile | ExtendedFolder>,
 	config: Config,
 ) {
 	let count = 0;
 	let total = 0;
-	const maxFiles = new Sema(128);
-	const maxChunks = new Sema(1024);
-	const maxPowershell = new Sema(32);
+
+	const maxChunks = new Sema(config.max_chunks);
+	const maxFiles = new Sema(config.max_files);
 
 	const promises: Promise<void>[] = [];
 	for (const [path, entry] of Object.entries(PathRecord)) {
@@ -106,22 +114,19 @@ async function sync(
 		if (shouldSkipDownload(path, config)) {
 			continue;
 		}
+
 		promises.push(
 			maxFiles
 				.acquire()
-				.then(() => {
-					return download_entry(entry, filePath, maxChunks);
-				})
-				.then((result) => {
-					if (entry.kind === "file" && result === 0)
-						maxPowershell // shelling out is slow, too many processes fucks shit up
-							.acquire()
-							.then(() => {
-								return setCreationTime(filePath, entry.metadata.creation);
-							})
-							.finally(() => {
-								maxPowershell.release();
-							});
+				.then(async () => {
+					// Make this async to await download_entry
+					const downloadResult = await download_entry(
+						entry,
+						filePath,
+						maxChunks,
+					); // Await the result
+					// setRemoteMetadata is now called inside download_entry for files
+					return downloadResult; // Pass result for further processing if needed
 				})
 				.then(() => {
 					const trimmedname = entry.path[entry.path.length - 1];
@@ -129,12 +134,22 @@ async function sync(
 					count++;
 					if (entry.kind === "file") {
 						process.stdout.write(
-							`\r\x1b[2K${count.toString().padStart(length_of_total)}/${total} | ${maxFiles.nrWaiting().toString().padStart(length_of_total)} files waiting | ${maxChunks.nrWaiting()} chunks | Last download was ${trimmedname}`,
+							`\r\x1b[2K${count.toString().padStart(length_of_total)}/${total} | ${maxChunks.nrWaiting()} chunks waiting ${maxChunks.nrWaiting() < 64 ? "you should increase max_files " : ""}| Last download was ${trimmedname}`,
 						);
 					}
 				})
 				.finally(() => {
 					maxFiles.release();
+				})
+				.catch(async (e) => {
+					if (e instanceof Error) {
+						console.error(e.message);
+					} else {
+						console.error(e);
+					}
+					try {
+						await fs.unlink(filePath);
+					} catch (e) {}
 				}),
 		);
 	}
@@ -143,9 +158,6 @@ async function sync(
 	process.stdout.write("\x1B[?25h\r\n");
 	await maxFiles.drain();
 	await maxChunks.drain();
-	if (process.platform === "win32") {
-		await new Promise((resolve) => setTimeout(resolve, 1000)); // wait for powershell to exit
-	}
 }
 
 async function verify(
@@ -161,7 +173,7 @@ async function verify(
 	const files_to_move: {
 		filepath: string;
 		mismatches: {
-			type: "size" | "mtime" | "btime" | "notfound";
+			type: "size" | "mtime" | "btime" | "notfound" | "metadata_error";
 			message: string;
 		}[];
 	}[] = [];
@@ -178,27 +190,35 @@ async function verify(
 		const entry = PathRecord[entry_path];
 		if (entry) {
 			if (entry.kind === "file") {
-				const stats = await fs.stat(filepath);
 				const mismatches: {
-					type: "size" | "mtime" | "btime" | "notfound";
+					type: "size" | "mtime" | "btime" | "notfound" | "metadata_error";
 					message: string;
 				}[] = [];
-				if (stats.size !== entry.metadata.size) {
+				try {
+					const localMetadata = await getRemoteMetadata(filepath);
+
+					if (localMetadata.size !== entry.metadata.size) {
+						mismatches.push({
+							type: "size",
+							message: `On disk: ${localMetadata.size} !== On cloud: ${entry.metadata.size}`,
+						});
+					}
+					if (localMetadata.lastModified !== entry.metadata.lastModified) {
+						mismatches.push({
+							type: "mtime",
+							message: `On disk: ${localMetadata.lastModified} !== On cloud: ${entry.metadata.lastModified}`,
+						});
+					}
+					if (localMetadata.creation !== entry.metadata.creation) {
+						mismatches.push({
+							type: "btime",
+							message: `On disk: ${localMetadata.creation} !== On cloud: ${entry.metadata.creation}`,
+						});
+					}
+				} catch (e) {
 					mismatches.push({
-						type: "size",
-						message: `On disk: ${stats.size} !== On cloud: ${entry.metadata.size}`,
-					});
-				}
-				if (stats.mtimeMs !== entry.metadata.lastModified) {
-					mismatches.push({
-						type: "mtime",
-						message: `On disk: ${stats.mtimeMs} !== On cloud: ${entry.metadata.lastModified}`,
-					});
-				}
-				if (stats.birthtimeMs !== entry.metadata.creation) {
-					mismatches.push({
-						type: "btime",
-						message: `On disk: ${stats.birthtimeMs} !== On cloud: ${entry.metadata.creation}`,
+						type: "metadata_error",
+						message: `Error reading local metadata for ${filepath}: ${(e as Error).message}`,
 					});
 				}
 				if (mismatches.length > 0) {
@@ -235,16 +255,34 @@ async function verify(
 
 	return files_to_move.length;
 }
+
 async function waitforinput(msg: string) {
 	if (process.stdout.isTTY) {
 		console.log(msg);
 		await new Promise((resolve) => process.stdin.once("data", resolve));
 	}
 }
+
 async function getConfig() {
 	const configfile = Bun.file(NPath.join(execDir, "config.json"));
 	if (!(await configfile.exists())) {
 		console.error("Config file not found, creating default config");
+		if (process.platform === "win32") {
+			const base_directory = await folder_Picker("Select the base directory");
+			const removed_directory = await folder_Picker(
+				"Select the removed directory",
+			);
+			await Bun.write(
+				NPath.join(execDir, "config.json"),
+				JSON.stringify(Config({ base_directory, removed_directory }), null, 2),
+			);
+		} else {
+			await Bun.write(
+				NPath.join(execDir, "config.json"),
+				JSON.stringify(Config({}), null, 2),
+			);
+		}
+	} else {
 		await Bun.write(
 			NPath.join(execDir, "config.json"),
 			JSON.stringify(Config({}), null, 2),
@@ -272,7 +310,7 @@ if (process.argv[0] === "bun") {
 }
 
 async function main() {
-	console.log("Version 2.1.0");
+	console.log("Version 2.2.0");
 	const config = await getConfig();
 	config.base_directory = NPath.resolve(execDir, config.base_directory);
 	config.removed_directory = NPath.resolve(execDir, config.removed_directory);
@@ -292,12 +330,10 @@ async function main() {
 		}
 		console.log(`Retrying ${bad} files`);
 		await sync(PathRecord, config);
-		if (process.platform === "win32") {
-			await new Promise((resolve) => setTimeout(resolve, 1000)); // wait for powershell to exit
-		}
 	}
 	await waitforinput("Press any key to exit...");
 }
+
 async function run() {
 	// this is a wrapper that catches errors and waits for input, because bun is a bitch and bytecode yells at me if i do this in the module scope
 	try {
