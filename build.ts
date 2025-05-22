@@ -39,7 +39,7 @@ await Promise.all(
 				outfile += ".exe";
 			}
 			const bytecodeFlag = useBytecode ? "--bytecode" : "";
-			await $`bun build --compile --minify ${bytecodeFlag} --sourcemaps ./test.ts ./node_modules/bun-xattr/impl/Darwin.ts ./node_modules/bun-xattr/impl/Linux.ts --outfile ${outfile} --target ${target}`;
+			await $`bun build --compile --minify ${bytecodeFlag} --sourcemaps ./index.ts ./node_modules/bun-xattr/impl/Darwin.ts ./node_modules/bun-xattr/impl/Linux.ts --outfile ${outfile} --target ${target}`;
 		});
 	}),
 );
