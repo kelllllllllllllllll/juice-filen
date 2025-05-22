@@ -1,10 +1,11 @@
 import { createDecipheriv } from "node:crypto";
+import fss from "node:fs";
 import fs from "node:fs/promises";
+import { promisify } from "node:util";
 import type { Sema } from "async-sema";
 import type { ExtendedFile } from "./arktype";
-
 const CHUNK_SIZE = 2 ** 20;
-
+const ftruncate = promisify(fss.ftruncate);
 export async function download_chunk(
 	region: string,
 	bucket: string,
@@ -57,23 +58,28 @@ export async function download_file(
 	maxChunks: Sema,
 ) {
 	const f = await fs.open(path, "w");
+	try {
+		await ftruncate(f.fd, file.metadata.size); // preallocate file
 
-	const promises = Array.from({ length: file.chunks }, (_, i) =>
-		maxChunks
-			.acquire()
-			.then(() =>
-				download_chunk(
-					file.region,
-					file.bucket,
-					file.uuid,
-					i,
-					file.metadata.key,
-				).then((chunk) => f.write(chunk, 0, chunk.byteLength, i * CHUNK_SIZE)),
-			)
-			.finally(() => maxChunks.release()),
-	);
+		const promises = Array.from({ length: file.chunks }, (_, i) =>
+			maxChunks
+				.acquire()
+				.then(async () => {
+					download_chunk(
+						file.region,
+						file.bucket,
+						file.uuid,
+						i,
+						file.metadata.key,
+					).then((chunk) => {
+						f.write(chunk, 0, chunk.byteLength, i * CHUNK_SIZE);
+					});
+				})
+				.finally(() => maxChunks.release()),
+		);
 
-	const results = await Promise.all(promises);
-
-	await f.close();
+		await Promise.all(promises);
+	} finally {
+		await f.close();
+	}
 }

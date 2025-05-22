@@ -27,10 +27,10 @@ const File = type({
 });
 export const Entry = type({ name: "string", kind: "'file' | 'folder'" });
 export const ExtendedFolder = Folder.merge({
-	size: "number.integer >= 0",
 	kind: "'folder'",
 	path: Path,
 	children: Entry.array(),
+	size: "number.integer >= 0",
 	chunks: "number.integer >= 0",
 });
 export const ExtendedFile = File.merge({
@@ -48,12 +48,22 @@ export const rawInput = type({
 	folders: Folder.array(),
 });
 export type Input = typeof rawInput.infer;
+
+export const LocalMetadata = type({
+	uuid: "string.uuid.v4",
+	lastModified: "number.epoch",
+	creation: "number.epoch",
+	size: "number.integer >= 1",
+});
+export type LocalMetadata = typeof LocalMetadata.infer;
+
 export const Config = type({
-	version: "string.semver = '2.1.0'",
+	version: "string.semver = '2.3.0'",
+	no_base: "boolean = true",
 	parent_uuid: "string.uuid = '607c110c-48e1-4248-bf45-0eb0dfd06fb9'",
 	parent_password: "string = 'juicetracker'",
 	parent_key: "string = 'mdbzIcGzl9HcgB1KkbxGSVxaw2f2Ao1v'",
-	exclude: ["string[]", "=", () => ["/Juice WRLD/Studio Sessions"]],
+	exclude: ["string[]", "=", () => ["/Studio Sessions"]],
 	base_directory: "string = './downloads'",
 	move_removed_files: "boolean = true",
 	removed_directory: "string = './removed'",
@@ -62,11 +72,3 @@ export const Config = type({
 	max_files: "number.integer >= 1 = 32",
 });
 export type Config = typeof Config.infer;
-
-export const RemoteMetadata = type({
-	uuid: "string.uuid.v4",
-	lastModified: "number.epoch",
-	creation: "number.epoch",
-	size: "number.integer >= 1",
-});
-export type RemoteMetadata = typeof RemoteMetadata.infer;

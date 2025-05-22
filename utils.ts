@@ -1,4 +1,7 @@
 import fs from "node:fs/promises";
+import path from "node:path";
+
+import { ArkErrors, type } from "arktype";
 import {
 	type Entry,
 	type ExtendedFile,
@@ -6,15 +9,16 @@ import {
 	type File,
 	type Folder,
 	type Input,
+	LocalMetadata,
 	Path,
-	RemoteMetadata,
 	rawInput,
 } from "./arktype";
-import { getDirectoryListing } from "./mysdk";
-import { deriveKeyFromPassword } from "./mysdk";
-import { directoryPublicLinkInfo } from "./mysdk";
+import { getxattr, setxattr } from "./attributes";
+import { getDirectoryListing } from "./myfilensdk";
+import { deriveKeyFromPassword } from "./myfilensdk";
+import { directoryPublicLinkInfo } from "./myfilensdk";
 
-export function flatTreeToPathRecordDFS(input: Input) {
+export function flatTreeToPathRecordDFS(input: Input, baseUuid = "base") {
 	const record: Record<string, ExtendedFolder | ExtendedFile> = {};
 
 	// build quick lookup of folder‐children
@@ -99,7 +103,7 @@ export function flatTreeToPathRecordDFS(input: Input) {
 	// map uuid → Folder for lookup in dfs
 	const folderMap = new Map(input.folders.map((f) => [f.uuid, f]));
 	// start at virtual root
-	dfs("base", []);
+	dfs(baseUuid, []);
 	return record;
 }
 
@@ -176,52 +180,49 @@ export function convertPath(from: string, to: "win32" | "posix" | "mixed") {
 	}
 }
 
-let getAttributeUnix: typeof import("@napi-rs/xattr").getAttribute;
-let setAttributeUnix: typeof import("@napi-rs/xattr").setAttribute;
+// Types for the result object with discriminated union
+type Success<T> = {
+	data: T;
+	error: null;
+};
 
-if (process.platform !== "win32") {
-	setupXattr();
-}
-import "@napi-rs/xattr-linux-x64-musl";
-import { ArkErrors, type } from "arktype";
-async function setupXattr() {
-	// seperate function so bun build with bytecode doesn't fail
-	({ getAttribute: getAttributeUnix, setAttribute: setAttributeUnix } =
-		await import("@napi-rs/xattr"));
-	await import("@napi-rs/xattr-linux-x64-musl");
-}
+type Failure<E> = {
+	data: null;
+	error: E;
+};
 
-export async function getAttribute(path: string, name: string) {
-	if (process.platform === "win32") {
-		return await fs.readFile(`${path}:${name}`);
+type Result<T, E = Error> = Success<T> | Failure<E>;
+
+// Main wrapper function
+export async function tryCatch<T, E = Error>(
+	promise: Promise<T>,
+): Promise<Result<T, E>> {
+	try {
+		const data = await promise;
+		return { data, error: null };
+	} catch (error) {
+		return { data: null, error: error as E };
 	}
-	const data = await getAttributeUnix(path, name);
-	if (!data) {
-		throw new Error("Attribute not found");
+}
+export async function* walk(dir: string): AsyncGenerator<string> {
+	for await (const d of await fs.opendir(dir)) {
+		const entry = path.join(dir, d.name);
+		if (d.isDirectory()) yield* walk(entry);
+		else if (d.isFile()) yield entry;
 	}
-	return data;
 }
 
-export async function setAttribute(path: string, name: string, value: Buffer) {
-	if (process.platform === "win32") {
-		return await fs.writeFile(`${path}:${name}`, value);
-	}
-	return await setAttributeUnix(path, name, value);
+export async function setLocalMetadata(path: string, metadata: LocalMetadata) {
+	await setxattr(path, "user.filen", JSON.stringify(metadata));
 }
-
-export async function setRemoteMetadata(
+export async function getLocalMetadata(
 	path: string,
-	metadata: RemoteMetadata,
-) {
-	await setAttribute(path, "filen", Buffer.from(JSON.stringify(metadata)));
-}
-export async function getRemoteMetadata(
-	path: string,
-): Promise<RemoteMetadata | null> {
-	const data = (await getAttribute(path, "filen")).toString("utf-8");
-	const metadata = type("string.json.parse").pipe(RemoteMetadata)(data);
+): Promise<LocalMetadata | string> {
+	const data = await getxattr(path, "user.filen");
+	const text = new TextDecoder().decode(data);
+	const metadata = type("string.json.parse").pipe(LocalMetadata)(text);
 	if (metadata instanceof ArkErrors) {
-		return null;
+		return metadata.summary;
 	}
 	return metadata;
 }

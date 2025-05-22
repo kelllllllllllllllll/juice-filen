@@ -31,14 +31,15 @@ const targets = [
 
 await Promise.all(
 	targets.flatMap((target) => {
-		return [true, false].map(async (useBytecode) => {
-			const suffix = useBytecode ? "" : "-nobytecode";
+		return [false].map(async (useBytecode) => {
+			// bytecode is so buggy, it's not worth it
+			const suffix = useBytecode ? "-bytecode" : "";
 			let outfile = `${build_dir}/filen-${target.replace("bun-", "")}${suffix}`;
 			if (target.includes("windows")) {
 				outfile += ".exe";
 			}
 			const bytecodeFlag = useBytecode ? "--bytecode" : "";
-			await $`bun build --compile --minify ${bytecodeFlag} --sourcemaps ./index.ts --outfile ${outfile} --target ${target}`;
+			await $`bun build --compile --minify ${bytecodeFlag} --sourcemaps ./test.ts ./node_modules/bun-xattr/impl/Darwin.ts ./node_modules/bun-xattr/impl/Linux.ts --outfile ${outfile} --target ${target}`;
 		});
 	}),
 );
