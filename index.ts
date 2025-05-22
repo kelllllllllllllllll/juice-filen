@@ -3,6 +3,7 @@ import path from "node:path";
 import { type } from "arktype";
 import { Sema } from "async-sema";
 import { $ } from "bun";
+import { convertToObject } from "typescript";
 import { Config, type ExtendedFile, type ExtendedFolder } from "./arktype";
 import { download_file } from "./streamfile";
 import { getLocalMetadata, setLocalMetadata } from "./utils";
@@ -19,7 +20,10 @@ async function folder_Picker(description: string) {
 		throw new Error("Folder picker is only supported on Windows");
 	}
 	const result =
-		await $`powershell -Command "Add-Type -AssemblyName System.Windows.Forms; \$folderBrowserDialog = New-Object System.Windows.Forms.FolderBrowserDialog; \$folderBrowserDialog.Description = '${description}'; \$folderBrowserDialog.ShowNewFolderButton = \$true; \$folderBrowserDialog.RootFolder = [System.Environment+SpecialFolder]::Desktop; \$folderBrowserDialog.AutoUpgradeEnabled = \$true; if (\$folderBrowserDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Host \$folderBrowserDialog.SelectedPath }"`.text();
+		await $`powershell -Command "Add-Type -AssemblyName System.Windows.Forms; \$folderBrowserDialog = New-Object System.Windows.Forms.FolderBrowserDialog; \$folderBrowserDialog.Description = '${description}'; \$folderBrowserDialog.ShowNewFolderButton = \$true; \$folderBrowserDialog.RootFolder = [System.Environment+SpecialFolder]::Desktop; \$folderBrowserDialog.AutoUpgradeEnabled = \$true; if (\$folderBrowserDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Host \$folderBrowserDialog.SelectedPath }"`
+			.text()
+			.then((s) => s.trim());
+
 	if (await fs.exists(result)) {
 		const stat = await fs.stat(result);
 		if (!stat.isDirectory()) {
@@ -304,26 +308,25 @@ async function waitforinput(msg: string) {
 }
 
 async function getConfig() {
-	const configfile = Bun.file(path.join(execDir, "config.json"));
-	if (!(await configfile.exists())) {
+	const configpath = path.join(execDir, "config.json");
+	if (!(await fs.exists(configpath))) {
 		console.error("Config file not found, creating default config");
 		if (process.platform === "win32") {
 			const base_directory = await folder_Picker("Select the base directory");
 			const removed_directory = await folder_Picker(
 				"Select the removed directory",
 			);
-			await Bun.write(
-				path.join(execDir, "config.json"),
+			await fs.writeFile(
+				configpath,
 				JSON.stringify(Config({ base_directory, removed_directory }), null, 2),
 			);
 		} else {
-			await Bun.write(
-				path.join(execDir, "config.json"),
-				JSON.stringify(Config({}), null, 2),
-			);
+			await fs.writeFile(configpath, JSON.stringify(Config({}), null, 2));
 		}
+		await new Promise((resolve) => setTimeout(resolve, 1000));
 	}
-	const config = Config(await configfile.json());
+	const text = await fs.readFile(configpath, "utf-8");
+	const config = type("string.json.parse").pipe(Config)(text);
 	if (config instanceof type.errors) {
 		console.error(
 			"Config file is invalid, please fix it, or delete it and let it regenerate",
