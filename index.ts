@@ -5,6 +5,7 @@ import { Sema } from "async-sema";
 import { $ } from "bun";
 import { convertToObject } from "typescript";
 import { Config, type ExtendedFile, type ExtendedFolder } from "./arktype";
+import { version } from "./package.json";
 import { download_file } from "./streamfile";
 import { getLocalMetadata, setLocalMetadata } from "./utils";
 import {
@@ -346,7 +347,7 @@ if (process.argv[0] === "bun") {
 }
 
 async function main() {
-	console.log("Version 2.3.2");
+	console.log(`Version v${version}`);
 	const config = await getConfig();
 	config.base_directory = path.resolve(execDir, config.base_directory);
 	config.removed_directory = path.resolve(execDir, config.removed_directory);

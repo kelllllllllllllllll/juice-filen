@@ -1,4 +1,5 @@
 import { type } from "arktype";
+import { version } from "./package.json";
 
 export const Path = type("string[]#path");
 const Folder = type({
@@ -58,7 +59,7 @@ export const LocalMetadata = type({
 export type LocalMetadata = typeof LocalMetadata.infer;
 
 export const Config = type({
-	version: "string.semver = '2.3.2'",
+	version: ["string.semver", "=", version],
 	no_base: "boolean = true",
 	parent_uuid: "string.uuid = '607c110c-48e1-4248-bf45-0eb0dfd06fb9'",
 	parent_password: "string = 'juicetracker'",
