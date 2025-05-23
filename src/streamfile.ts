@@ -66,7 +66,7 @@ export async function download_file(
 			maxChunks
 				.acquire()
 				.then(async () => {
-					download_chunk(
+					await download_chunk(
 						file.region,
 						file.bucket,
 						file.uuid,
@@ -79,12 +79,19 @@ export async function download_file(
 				})
 				.finally(() => maxChunks.release()),
 		);
-		setInterval(async () => {
+		const timeoutId = setInterval(async () => {
 			if (performance.now() - lastChunkTime > 300000) {
+				// 5 minutes
+				clearInterval(timeoutId);
 				throw new Error("Download timed out");
 			}
 		}, 10000);
-		await Promise.all(promises);
+
+		try {
+			await Promise.all(promises);
+		} finally {
+			clearInterval(timeoutId);
+		}
 	} finally {
 		await f.close();
 	}

@@ -158,14 +158,7 @@ async function sync(
 			maxFiles
 				.acquire()
 				.then(async () => {
-					// Make this async to await download_entry
-					const downloadResult = await download_entry(
-						entry,
-						absPath,
-						maxChunks,
-					); // Await the result
-					// setRemoteMetadata is now called inside download_entry for files
-					return downloadResult; // Pass result for further processing if needed
+					return download_entry(entry, absPath, maxChunks);
 				})
 				.then(() => {
 					const trimmedname = entry.path[entry.path.length - 1];

@@ -145,13 +145,13 @@ export function convertPath(from: string, to: "win32" | "posix" | "mixed") {
 	const RE_WIN_DEVICE_ROOT = /^([A-Za-z]):[\\\/]+/;
 	const RE_POSIX_DEVICE_ROOT = /^\/([A-Za-z])\//;
 
-	const out = from;
+	let out = from;
 	switch (to) {
 		case "win32": {
 			const parts = RE_POSIX_DEVICE_ROOT.exec(out);
 			if (parts) {
 				const device = `${parts[1]}:\\`;
-				out.replace(RE_POSIX_DEVICE_ROOT, device);
+				out = out.replace(RE_POSIX_DEVICE_ROOT, device);
 			}
 			return out.replace("/", "\\");
 		}
@@ -160,12 +160,12 @@ export function convertPath(from: string, to: "win32" | "posix" | "mixed") {
 				const parts = RE_POSIX_DEVICE_ROOT.exec(out);
 				if (parts) {
 					const device = `${parts[1]}:/`;
-					out.replace(RE_POSIX_DEVICE_ROOT, device);
+					out = out.replace(RE_POSIX_DEVICE_ROOT, device);
 				} else {
 					const parts = RE_WIN_DEVICE_ROOT.exec(out);
 					if (parts) {
 						const device = `${parts[1]}:/`;
-						out.replace(RE_WIN_DEVICE_ROOT, device);
+						out = out.replace(RE_WIN_DEVICE_ROOT, device);
 					}
 				}
 				return out.replaceAll("\\", "/");
@@ -175,7 +175,7 @@ export function convertPath(from: string, to: "win32" | "posix" | "mixed") {
 			const parts = RE_WIN_DEVICE_ROOT.exec(out);
 			if (parts) {
 				const device = `/${parts[1]?.toLowerCase()}/`;
-				out.replace(RE_WIN_DEVICE_ROOT, device);
+				out = out.replace(RE_WIN_DEVICE_ROOT, device);
 			}
 			return out.replaceAll("\\", "/");
 		}
