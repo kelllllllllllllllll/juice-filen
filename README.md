@@ -40,17 +40,19 @@ Here’s what a typical `config.json` looks like:
 ```json
 {
   "exclude": [
-    "/Juice WRLD/Studio Sessions"
+    "/Studio Sessions"
   ],
   "base_directory": "./downloads",
   "removed_directory": "./removed",
+  "version": "2.3.2",
   "parent_uuid": "607c110c-48e1-4248-bf45-0eb0dfd06fb9",
   "parent_password": "juicetracker",
   "parent_key": "mdbzIcGzl9HcgB1KkbxGSVxaw2f2Ao1v",
-  "max_chunks": 1024,
-  "max_files": 128,
+  "max_chunks": 256,
   "verify_retries": 3,
-  "move_removed_files": true
+  "max_files": 32,
+  "move_removed_files": true,
+  "no_base": true
 }
 ```
 
@@ -67,7 +69,7 @@ Here’s what a typical `config.json` looks like:
   Where downloaded files will be saved.
 
 - **`removed_directory`**  
-  Where removed files will be moved.
+  Where file removed from filen will be moved. This should not be inside the base_directory
 
 #### **Windows Users:**
 - Use **double backslashes** in folder paths.  

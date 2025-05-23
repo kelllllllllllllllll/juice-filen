@@ -173,7 +173,7 @@ async function sync(
 					count++;
 					if (entry.kind === "file") {
 						process.stdout.write(
-							`\r\x1b[2K${count.toString().padStart(length_of_total)}/${total} | ${maxChunks.nrWaiting()} chunks waiting ${maxChunks.nrWaiting() < 64 ? "you should increase max_files " : ""}| Last download was ${trimmedname}`,
+							`\r\x1b[2K${count.toString().padStart(length_of_total)}/${total} | ${maxChunks.nrWaiting()} chunks waiting ${maxChunks.nrWaiting() < 64 ? "you should increase max_files if your internet isn't being maxed out " : ""}| Last download was ${trimmedname}`,
 						);
 					}
 				})
