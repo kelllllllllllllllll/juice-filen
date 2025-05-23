@@ -1,9 +1,10 @@
 import fs from "node:fs/promises";
-import path, { resolve } from "node:path";
+import path from "node:path";
+
 import { type } from "arktype";
 import { Sema } from "async-sema";
 import { $ } from "bun";
-import { convertToObject } from "typescript";
+
 import { version } from "../package.json";
 import { Config, type ExtendedFile, type ExtendedFolder } from "./arktype";
 import { download_file } from "./streamfile";
@@ -166,7 +167,7 @@ async function sync(
 					count++;
 					if (entry.kind === "file") {
 						process.stdout.write(
-							`\r\x1b[2K${count.toString().padStart(length_of_total)}/${total} | ${maxChunks.nrWaiting()} chunks waiting ${maxChunks.nrWaiting() < 64 ? "you should increase max_files if your internet isn't being maxed out " : ""}| Last download was ${trimmedname}`,
+							`\r\x1b[2K\x1b[7l${count.toString().padStart(length_of_total)}/${total} | ${maxChunks.nrWaiting()} chunks waiting ${maxChunks.nrWaiting() < 64 ? "you should increase max_files if your internet isn't being maxed out " : ""}| Last download was ${trimmedname}`,
 						);
 					}
 				})
@@ -376,6 +377,7 @@ async function main() {
 		console.log(`Retrying ${bad} files`);
 		await sync(PathRecord, config);
 	}
+
 	await waitforinput("Press any key to exit...");
 	process.exit(0);
 }
