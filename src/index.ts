@@ -158,7 +158,7 @@ async function sync(
 		promises.push(
 			maxFiles
 				.acquire()
-				.then(async () => {
+				.then(() => {
 					return download_entry(entry, absPath, maxChunks);
 				})
 				.then(() => {
