@@ -65,8 +65,8 @@ jobs:
           body: |
             ${{ steps.get_version.outputs.tag_name }}
 
-          prerelease: ${{ steps.get_version.outputs.is_prerelease }}
-          draft: true 
+          prerelease: true
+          
 
       - name: Upload each file in dist/ as a release asset
         env:
