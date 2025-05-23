@@ -346,7 +346,7 @@ if (process.argv[0] === "bun") {
 }
 
 async function main() {
-	console.log("Version 2.3.1");
+	console.log("Version 2.3.2");
 	const config = await getConfig();
 	config.base_directory = path.resolve(execDir, config.base_directory);
 	config.removed_directory = path.resolve(execDir, config.removed_directory);
