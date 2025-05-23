@@ -1,7 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { version } from "./package.json";
 
 import { ArkErrors, type } from "arktype";
+import { semver } from "bun";
 import {
 	type Entry,
 	type ExtendedFile,
@@ -225,4 +227,33 @@ export async function getLocalMetadata(
 		return metadata.summary;
 	}
 	return metadata;
+}
+
+export async function check_for_updates() {
+	console.log("Checking for updates...");
+	const response = await fetch(
+		"https://api.github.com/repos/kelllllllllllllllll/juice-filen/releases/latest",
+	);
+	const data = type("string.json.parse").pipe(
+		type({
+			tag_name: [
+				["string", "=>", (s: string) => s.slice(1)],
+				"|>",
+				"string.semver",
+			],
+			html_url: "string.url",
+		}),
+	)(await response.text());
+	if (data instanceof ArkErrors) {
+		console.error("Error checking for updates");
+		console.error(data.summary);
+		return;
+	}
+
+	if (semver.order(data.tag_name, version) === 1) {
+		console.log(`Update available: ${data.tag_name}`);
+		console.log(data.html_url);
+	} else {
+		console.log("No updates available");
+	}
 }

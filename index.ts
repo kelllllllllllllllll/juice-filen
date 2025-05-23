@@ -7,7 +7,7 @@ import { convertToObject } from "typescript";
 import { Config, type ExtendedFile, type ExtendedFolder } from "./arktype";
 import { version } from "./package.json";
 import { download_file } from "./streamfile";
-import { getLocalMetadata, setLocalMetadata } from "./utils";
+import { check_for_updates, getLocalMetadata, setLocalMetadata } from "./utils";
 import {
 	convertPath,
 	flatTreeToPathRecordDFS,
@@ -348,6 +348,7 @@ if (process.argv[0] === "bun") {
 
 async function main() {
 	console.log(`Version v${version}`);
+	await check_for_updates();
 	const config = await getConfig();
 	config.base_directory = path.resolve(execDir, config.base_directory);
 	config.removed_directory = path.resolve(execDir, config.removed_directory);
