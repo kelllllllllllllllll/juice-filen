@@ -6,7 +6,7 @@
 	"private": true,
 	"devDependencies": {
 		"@types/bun": "latest",
-		"tsx": "^4.19.4"
+		"biome": "^0.3.3"
 	},
 	"peerDependencies": {
 		"typescript": "^5"
