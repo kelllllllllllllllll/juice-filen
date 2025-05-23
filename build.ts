@@ -3,7 +3,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { $ } from "bun";
-import { Config } from "./arktype";
+import { Config } from "./src/arktype";
 const build_dir = "./dist";
 
 // Clean up and recreate temp directory
@@ -39,7 +39,7 @@ await Promise.all(
 				outfile += ".exe";
 			}
 			const bytecodeFlag = useBytecode ? "--bytecode" : "";
-			await $`bun build --compile --minify ${bytecodeFlag} --sourcemaps ./index.ts ./node_modules/bun-xattr/impl/Darwin.ts ./node_modules/bun-xattr/impl/Linux.ts --outfile ${outfile} --target ${target}`;
+			await $`bun build --compile --minify ${bytecodeFlag} --sourcemaps ./src/index.ts ./node_modules/bun-xattr/impl/Darwin.ts ./node_modules/bun-xattr/impl/Linux.ts --outfile ${outfile} --target ${target}`;
 		});
 	}),
 );
