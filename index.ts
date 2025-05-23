@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import path from "node:path";
+import path, { resolve } from "node:path";
 import { type } from "arktype";
 import { Sema } from "async-sema";
 import { $ } from "bun";
@@ -303,7 +303,7 @@ async function verify(
 async function waitforinput(msg: string) {
 	if (process.stdout.isTTY) {
 		console.log(msg);
-		await new Promise((resolve) => process.stdin.once("data", resolve));
+		await new Promise((s) => process.stdin.once("data", s));
 	}
 }
 
@@ -382,6 +382,7 @@ async function main() {
 		await sync(PathRecord, config);
 	}
 	await waitforinput("Press any key to exit...");
+	process.exit(0);
 }
 
 async function run() {
