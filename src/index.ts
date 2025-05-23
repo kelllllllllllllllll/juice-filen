@@ -4,8 +4,8 @@ import { type } from "arktype";
 import { Sema } from "async-sema";
 import { $ } from "bun";
 import { convertToObject } from "typescript";
+import { version } from "../package.json";
 import { Config, type ExtendedFile, type ExtendedFolder } from "./arktype";
-import { version } from "./package.json";
 import { download_file } from "./streamfile";
 import { check_for_updates, getLocalMetadata, setLocalMetadata } from "./utils";
 import {

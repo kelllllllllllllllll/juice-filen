@@ -38,4 +38,4 @@ removed
 test
 downloads
 dist
-config.json
+**/config.json
