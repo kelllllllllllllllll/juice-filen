@@ -215,7 +215,8 @@ export async function* walk(dir: string): AsyncGenerator<string> {
 }
 
 export async function setLocalMetadata(path: string, metadata: LocalMetadata) {
-	await setxattr(path, "user.filen", JSON.stringify(metadata));
+	const encoder = new TextEncoder();
+	await setxattr(path, "user.filen", encoder.encode(JSON.stringify(metadata))); // setxattr adds null terminator, but doesn't remove it on get, silly api
 }
 export async function getLocalMetadata(
 	path: string,

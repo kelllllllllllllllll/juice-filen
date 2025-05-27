@@ -65,17 +65,18 @@ export async function download_file(
 		const promises = Array.from({ length: file.chunks }, (_, i) =>
 			maxChunks
 				.acquire()
-				.then(async () => {
-					await download_chunk(
+				.then(() => {
+					return download_chunk(
 						file.region,
 						file.bucket,
 						file.uuid,
 						i,
 						file.metadata.key,
-					).then((chunk) => {
-						f.write(chunk, 0, chunk.byteLength, i * CHUNK_SIZE);
-						lastChunkTime = performance.now();
-					});
+					);
+				})
+				.then((chunk) => {
+					lastChunkTime = performance.now();
+					return f.write(chunk, 0, chunk.byteLength, i * CHUNK_SIZE);
 				})
 				.finally(() => maxChunks.release()),
 		);

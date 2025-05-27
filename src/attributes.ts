@@ -38,7 +38,7 @@ export async function getxattr(
 export async function setxattr(
 	target: string | number,
 	key: string,
-	value: Uint8Array | string,
+	value: Uint8Array,
 ) {
 	const os = ostype();
 	switch (os) {

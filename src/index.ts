@@ -12,7 +12,7 @@ import { check_for_updates, getLocalMetadata, setLocalMetadata } from "./utils";
 import {
 	convertPath,
 	flatTreeToPathRecordDFS,
-	getFlatTree,
+	type getFlatTree,
 	tryCatch,
 	walk,
 } from "./utils";
@@ -141,8 +141,10 @@ async function sync(
 	PathRecord: Record<string, ExtendedFile | ExtendedFolder>,
 	config: Config,
 ) {
-	let count = 0;
-	let total = 0;
+	let count_file = 0;
+	let total_file = 0;
+	let count_chunk = 0;
+	let total_chunk = 0;
 
 	const maxChunks = new Sema(config.max_chunks);
 	const maxFiles = new Sema(config.max_files);
@@ -154,7 +156,7 @@ async function sync(
 		if (shouldSkipDownload(filePath, config)) {
 			continue;
 		}
-
+		total_chunk += entry.chunks;
 		promises.push(
 			maxFiles
 				.acquire()
@@ -163,11 +165,13 @@ async function sync(
 				})
 				.then(() => {
 					const trimmedname = entry.path[entry.path.length - 1];
-					const length_of_total = total.toString().length;
-					count++;
+					const length_of_total_file = total_file.toString().length;
+					const chunk_percent_str = `${((count_chunk / total_chunk) * 100).toFixed(2)}%`;
+					count_file++;
+					count_chunk += entry.chunks;
 					if (entry.kind === "file") {
 						process.stdout.write(
-							`\r\x1b[2K\x1b[7l${count.toString().padStart(length_of_total)}/${total} | ${maxChunks.nrWaiting()} chunks waiting ${maxChunks.nrWaiting() < 64 ? "you should increase max_files if your internet isn't being maxed out " : ""}| Last download was ${trimmedname}`,
+							`\r\x1b[2K\x1b[7l ${chunk_percent_str} ${count_file.toString().padStart(length_of_total_file)}/${total_file} | ${maxChunks.nrWaiting()} chunks waiting ${maxChunks.nrWaiting() < 64 ? "you should increase max_files if your internet isn't being maxed out " : ""}| Last download was ${trimmedname}`,
 						);
 					}
 				})
@@ -186,7 +190,7 @@ async function sync(
 				}),
 		);
 	}
-	total = promises.length;
+	total_file = promises.length;
 	await Promise.all(promises);
 	process.stdout.write("\x1B[?25h\r\n");
 	await maxFiles.drain();
@@ -318,7 +322,8 @@ async function getConfig() {
 		} else {
 			await fs.writeFile(configpath, JSON.stringify(Config({}), null, 2));
 		}
-		await new Promise((resolve) => setTimeout(resolve, 1000));
+		await waitforinput("Press any key to exit...");
+		process.exit(1);
 	}
 	const text = await fs.readFile(configpath, "utf-8");
 	const config = type("string.json.parse").pipe(Config)(text);
@@ -339,7 +344,7 @@ if (process.argv[0] === "bun") {
 	process.chdir(path.dirname(process.execPath));
 	execDir = path.dirname(process.execPath);
 }
-
+import finalflatetree from "../flattree.json" with { type: "json" };
 async function main() {
 	console.log(`Version v${version}`);
 	await check_for_updates();
@@ -352,7 +357,7 @@ async function main() {
 		);
 	}
 	const getPathRecord = async (no_base: boolean) => {
-		const FlatTree = await getFlatTree();
+		const FlatTree = finalflatetree;
 		if (no_base) {
 			const base = FlatTree.folders.filter((f) => f.parent === "base");
 			if (base.length === 0) {
